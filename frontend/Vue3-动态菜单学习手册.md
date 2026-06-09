@@ -37,7 +37,7 @@ npm -v
 
 ```bash
 cd D:/workspaces/IdeaProjects/fast-crud-application/frontend
-npm create vite@latest . -- --template vue
+npm create vite@latest fc-frontend -- --template vue
 ```
 
 > 💡 **知识点：Vite**
