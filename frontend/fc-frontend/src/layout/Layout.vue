@@ -19,27 +19,8 @@ async function fetchMenus() {
   const result = await response.json()
   if (result.code === 200) {
     menuList.value = result.data   // .value 是 ref 的固定写法
-    console.log('返回的动态菜单：{}', result.data)
-    addDynamicRoutes(result.data)
+    // addDynamicRoutes 调用可以删掉，只保留获取菜单数据用于渲染侧边栏
   }
-}
-
-function addDynamicRoutes(menus) {
-  menus.forEach(menu => {
-    if (menu.component) {
-      const componentFn = loadView(menu.component)   // 👈 改这里
-      if (componentFn) {
-        router.addRoute('Layout', {
-          path: menu.path,
-          name: menu.name,
-          component: componentFn
-        })
-      }
-    }
-    if (menu.children && menu.children.length > 0) {
-      addDynamicRoutes(menu.children)
-    }
-  })
 }
 
 </script>
