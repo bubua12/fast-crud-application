@@ -9,7 +9,6 @@ const routes = [
         path: '/',
         name: 'Layout',
         component: Layout,
-        redirect: '/home',
         children: []
     }
 ]
@@ -31,7 +30,8 @@ router.beforeEach(async (to, from, next) => {
             addDynamicRoutes(result.data)
         }
         dynamicRoutesLoaded = true
-        next(to.path)    // 👈 路由注册完，重新跳转到目标页面
+        // next(to.path)    // 👈 路由注册完，重新跳转到目标页面
+        next(to.path === '/' ? '/home' : to.path)
     } else {
         next()            // 👈 已加载，直接放行
     }
