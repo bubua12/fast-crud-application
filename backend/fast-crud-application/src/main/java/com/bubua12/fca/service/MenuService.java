@@ -36,14 +36,14 @@ public class MenuService {
         List<Menu> menus = new ArrayList<>();
 
         // ========== 一级菜单 ==========
-        menus.add(createMenu(1L, 0L, "首页", "/home", "HomeIcon", 1));
-        menus.add(createMenu(2L, 0L, "系统管理", "/system", "SettingIcon", 2));
-        menus.add(createMenu(5L, 0L, "关于", "/about", "InfoIcon", 3));
+        menus.add(createMenu(1L, 0L, "首页", "/home", "HomeIcon", "Home", 1));
+        menus.add(createMenu(2L, 0L, "系统管理", "/system", "SettingIcon", null, 2));
+        menus.add(createMenu(5L, 0L, "关于", "/about", "InfoIcon", "About", 3));
 
         // ========== 二级菜单 - 系统管理的子菜单 ==========
-        menus.add(createMenu(3L, 2L, "用户管理", "/system/user", "UserIcon", 1));
-        menus.add(createMenu(4L, 2L, "角色管理", "/system/role", "RoleIcon", 2));
-        menus.add(createMenu(6L, 2L, "菜单管理", "/system/menu", "MenuIcon", 3));
+        menus.add(createMenu(3L, 2L, "用户管理", "/system/user", "UserIcon", "system/user/index", 1));
+        menus.add(createMenu(4L, 2L, "角色管理", "/system/role", "RoleIcon", "system/role/index", 2));
+        menus.add(createMenu(6L, 2L, "菜单管理", "/system/menu", "MenuIcon", "system/menu/index", 3));
 
         return menus;
     }
@@ -62,13 +62,15 @@ public class MenuService {
                 .collect(Collectors.toList());
     }
 
-    private Menu createMenu(Long id, Long parentId, String name, String path, String icon, int sort) {
+    private Menu createMenu(Long id, Long parentId, String name, String path,
+                            String icon, String component, int sort) {
         Menu menu = new Menu();
         menu.setId(id);
         menu.setParentId(parentId);
         menu.setName(name);
         menu.setPath(path);
         menu.setIcon(icon);
+        menu.setComponent(component);
         menu.setSort(sort);
         return menu;
     }

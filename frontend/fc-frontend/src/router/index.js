@@ -1,24 +1,20 @@
 import {createWebHistory, createRouter} from 'vue-router'
 
 import Layout from '../layout/Layout.vue'
-import Home from '../views/Home.vue'
-import About from '../views/About.vue'
-import User from '../views/User.vue'
-import Role from '../views/Role.vue'
-import Menu from '../views/Menu.vue'
+// import Home from '../views/Home.vue'
+// import About from '../views/About.vue'
+// import User from '../views/User.vue'
+// import Role from '../views/Role.vue'
+// import Menu from '../views/Menu.vue'
 
+// 修改为只留壳子
 const routes = [
     {
         path: '/',
+        name: 'Layout',
         component: Layout,
         redirect: '/home',
-        children: [
-            {path: 'home', name: 'Home', component: Home},
-            {path: 'about', name: 'About', component: About},
-            {path: 'system/user', name: 'User', component: User},
-            {path: 'system/role', name: 'Role', component: Role},
-            {path: 'system/menu', name: 'Menu', component: Menu},
-        ]
+        children: []
     }
 ]
 

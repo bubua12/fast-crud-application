@@ -1,6 +1,10 @@
 <!--  布局骨架：左侧菜单 + 右侧内容区 -->
 <script setup>
 import {ref, onMounted} from 'vue'
+import {loadView} from '@/router/dynamicLoad.js';
+import {useRouter} from "vue-router";
+
+const router = useRouter();
 
 // ref 创建响应式变量，页面会自动更新
 const menuList = ref([])
@@ -15,8 +19,29 @@ async function fetchMenus() {
   const result = await response.json()
   if (result.code === 200) {
     menuList.value = result.data   // .value 是 ref 的固定写法
+    console.log('返回的动态菜单：{}', result.data)
+    addDynamicRoutes(result.data)
   }
 }
+
+function addDynamicRoutes(menus) {
+  menus.forEach(menu => {
+    if (menu.component) {
+      const componentFn = loadView(menu.component)   // 👈 改这里
+      if (componentFn) {
+        router.addRoute('Layout', {
+          path: menu.path,
+          name: menu.name,
+          component: componentFn
+        })
+      }
+    }
+    if (menu.children && menu.children.length > 0) {
+      addDynamicRoutes(menu.children)
+    }
+  })
+}
+
 </script>
 
 <template>

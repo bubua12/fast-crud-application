@@ -30,6 +30,9 @@ public class Menu {
     /** 图标 */
     private String icon;
 
+    /** 前端组件路径（对应 views/ 下的文件路径，如 "system/user/index"） */
+    private String component;
+
     /** 排序 */
     private Integer sort;
 
