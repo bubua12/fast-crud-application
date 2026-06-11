@@ -25,6 +25,20 @@ async function fetchMenus() {
     <div class="sidebar">
       <h3>这里是菜单</h3>
       <!-- 菜单内容后面填 -->
+
+      <!-- v-for 遍历数组，:key 是必须的 -->
+      <div v-for="menu in menuList" :key="menu.id">
+        <!-- 有子菜单的：显示名称 + 子菜单 -->
+        <div v-if="menu.children && menu.children.length > 0">
+          <div class="menu-title">{{ menu.name }}</div>
+          <div v-for="child in menu.children" :key="child.id">
+            <router-link :to="child.path">{{ child.name }}</router-link>
+          </div>
+        </div>
+
+        <!-- 没有子菜单的：直接显示链接 -->
+        <router-link v-else :to="menu.path">{{ menu.name }}</router-link>
+      </div>
     </div>
 
     <!-- 右侧内容区 -->
@@ -35,5 +49,39 @@ async function fetchMenus() {
 </template>
 
 <style scoped>
+/* scoped 表示样式只对当前组件生效 */
+.layout {
+  display: flex;
+  height: 100vh;
+}
 
+.sidebar {
+  width: 200px;
+  background: #304156;
+  color: #bfcbd9;
+  padding: 10px;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+  background: #f0f2f5;
+}
+
+.menu-title {
+  padding: 8px 12px;
+  font-weight: bold;
+}
+
+a {
+  display: block;
+  padding: 6px 12px 6px 24px;
+  color: #bfcbd9;
+  text-decoration: none;
+}
+
+a:hover, a.router-link-active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
 </style>
