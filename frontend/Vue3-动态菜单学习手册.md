@@ -18,6 +18,7 @@
 - [第九章：递归组件 —— 渲染无限层级菜单](#第九章递归组件--渲染无限层级菜单)
 - [第十章：完整布局 —— 侧边栏 + 内容区](#第十章完整布局--侧边栏--内容区)
 - [第十一章：常用 Vue 3 知识点速查](#第十一章常用-vue-3-知识点速查)
+- [第十二章：三种路由方案对比](#第十二章三种路由方案对比)
 - [附录：常见问题](#附录常见问题)
 
 ---
@@ -901,6 +902,398 @@ watch(keyword, (newVal, oldVal) => {
 })
 </script>
 ```
+
+---
+
+## 第十二章：三种路由方案对比
+
+### 12.1 方案总览
+
+| 方案 | 谁控制菜单 | 加新页面要改什么 | 代表框架 |
+|------|-----------|----------------|---------|
+| A. 纯静态路由 | 前端代码写死 | 改 `router/index.js` | 简单项目、学习项目 |
+| B. 前端映射表 + 动态路由 | 后端数据库 | 改 `menuMap.js` + 后端加数据 | 中小项目 |
+| C. 后端返回组件路径 + 动态路由 | 后端数据库 | 后端加数据（前端不用改） | 若依（RuoYi）、大型项目 |
+
+你当前项目用的是**方案 A（纯静态路由）**，下面详细介绍方案 B 和方案 C。
+
+---
+
+### 12.2 方案 A：纯静态路由（你当前的写法）
+
+所有路由写死在 `router/index.js` 里，后端加了新菜单，前端必须改代码重新发布。
+
+```js
+// src/router/index.js
+const routes = [
+  {
+    path: '/',
+    component: Layout,
+    redirect: '/home',
+    children: [
+      { path: 'home', component: Home },
+      { path: 'system/user', component: User },
+      { path: 'system/role', component: Role },
+      // 每加一个页面就要在这里加一行
+    ]
+  }
+]
+```
+
+> 适合学习和小型项目，简单直接。
+
+---
+
+### 12.3 方案 B：前端映射表 + 动态路由
+
+#### 核心思路
+
+`router/index.js` 只保留 Layout 壳子，子路由由后端菜单数据动态注册。
+前端维护一个**映射表**，告诉程序"组件名 → 加载哪个文件"。
+
+#### 整体流程
+
+```
+1. router/index.js 只定义 Layout 壳子（静态）
+         ↓
+2. Layout.vue 的 onMounted 里调后端接口拿菜单数据
+         ↓
+3. 用映射表把菜单的 component 字段转成懒加载函数
+         ↓
+4. 用 router.addRoute() 逐个注册为 Layout 的子路由
+         ↓
+5. 用同一份菜单数据渲染侧边栏
+```
+
+#### 第一步：改造 router/index.js
+
+```js
+// src/router/index.js
+import { createRouter, createWebHistory } from 'vue-router'
+import Layout from '../layout/Layout.vue'
+
+// 只保留壳子，children 为空
+const routes = [
+  {
+    path: '/',
+    name: 'Layout',       // 👈 给个名字，addRoute 要用
+    component: Layout,
+    redirect: '/home',
+    children: []
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+```
+
+#### 第二步：创建映射表 menuMap.js
+
+```js
+// src/router/menuMap.js
+
+// 组件名 → 懒加载函数
+// 后端菜单数据的 component 字段对应这里的 key
+const menuMap = {
+  Home: () => import('@/views/Home.vue'),
+  About: () => import('@/views/About.vue'),
+  User: () => import('@/views/User.vue'),
+  Role: () => import('@/views/Role.vue'),
+}
+
+export default menuMap
+```
+
+> 💡 **知识点：`() => import()` 动态导入**
+> 这是 ES Module 的懒加载语法，只有访问该路由时才加载对应的 JS 文件，
+> 而不是一次性全部加载，提升首屏性能。
+
+#### 第三步：Layout.vue 里调接口 + 注册动态路由
+
+```vue
+<!-- src/layout/Layout.vue -->
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import menuMap from '@/router/menuMap'
+
+const router = useRouter()
+const menuList = ref([])
+
+onMounted(() => {
+  fetchMenus()
+})
+
+async function fetchMenus() {
+  const response = await fetch('http://localhost:18082/system/menu/tree')
+  const result = await response.json()
+
+  if (result.code === 200) {
+    menuList.value = result.data
+    addDynamicRoutes(result.data)
+  }
+}
+
+// 递归遍历菜单树，把每个叶子菜单注册为路由
+function addDynamicRoutes(menus) {
+  menus.forEach(menu => {
+    // 👇 有 component 且映射表里有，就注册路由
+    if (menu.component && menuMap[menu.component]) {
+      router.addRoute('Layout', {
+        path: menu.path,
+        name: menu.name,
+        component: menuMap[menu.component]
+      })
+    }
+    if (menu.children && menu.children.length > 0) {
+      addDynamicRoutes(menu.children)
+    }
+  })
+}
+</script>
+```
+
+#### 第四步：后端菜单数据加 component 字段
+
+```json
+[
+  {
+    "id": 1, "name": "首页", "path": "/home",
+    "component": "Home"
+  },
+  {
+    "id": 2, "name": "系统管理", "path": "/system",
+    "children": [
+      { "id": 3, "name": "用户管理", "path": "/system/user", "component": "User" },
+      { "id": 4, "name": "角色管理", "path": "/system/role", "component": "Role" }
+    ]
+  }
+]
+```
+
+其中 `"component": "User"` 对应映射表里的 `User: () => import('@/views/User.vue')`。
+
+#### 方案 B 的优缺点
+
+| | 说明 |
+|---|---|
+| ✅ 优点 | 路由代码不用每次改，菜单由后端控制 |
+| ✅ 优点 | 映射表是白名单，后端填错不会加载到非法组件 |
+| ❌ 缺点 | 加新页面还是要改 `menuMap.js`（但比改路由配置简单） |
+
+---
+
+### 12.4 方案 C：后端返回组件路径（若依方案）
+
+#### 核心思路
+
+后端菜单数据直接存**前端文件路径**，前端用 Vite 的 `import.meta.glob` 批量扫描所有 `.vue` 文件，运行时根据路径动态加载。
+
+前端**完全不需要维护映射表**，只要 `.vue` 文件存在就能加载。
+
+#### 整体流程
+
+```
+1. router/index.js 只定义 Layout 壳子
+         ↓
+2. Layout.vue 调后端接口拿菜单数据
+         ↓
+3. 后端返回 component: "system/user/index"
+         ↓
+4. 用 import.meta.glob 找到对应的 .vue 文件并加载
+         ↓
+5. 用 router.addRoute() 注册路由
+```
+
+#### 第一步：router/index.js（同方案 B）
+
+```js
+// src/router/index.js — 和方案 B 完全一样
+import { createRouter, createWebHistory } from 'vue-router'
+import Layout from '../layout/Layout.vue'
+
+const routes = [
+  {
+    path: '/',
+    name: 'Layout',
+    component: Layout,
+    redirect: '/home',
+    children: []
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+```
+
+#### 第二步：创建动态加载工具函数
+
+```js
+// src/router/dynamicLoad.js
+
+// 👇 Vite 提供的 API：批量扫描 src/views/ 下所有 .vue 文件
+// 返回一个对象，key 是文件路径，value 是懒加载函数
+const viewModules = import.meta.glob('@/views/**/*.vue')
+
+/**
+ * 根据后端返回的 component 路径，找到对应的懒加载函数
+ *
+ * 后端返回: "system/user/index"
+ * 拼接后:   "/src/views/system/user/index.vue"
+ * 从 viewModules 中找到匹配的加载函数
+ */
+export function loadView(component) {
+  const fullPath = `/src/views/${component}.vue`
+  return viewModules[fullPath]
+}
+```
+
+> 💡 **知识点：`import.meta.glob()`**
+> 这是 Vite 提供的批量导入 API，它在编译时扫描匹配的文件，
+> 自动生成一个 `{ 文件路径: 懒加载函数 }` 的映射对象。
+>
+> 例如扫描结果：
+> ```js
+> {
+>   '/src/views/Home.vue': () => import('/src/views/Home.vue'),
+>   '/src/views/system/user/index.vue': () => import('/src/views/system/user/index.vue'),
+>   // ...
+> }
+> ```
+>
+> 所以只要前端有这个 `.vue` 文件，后端填对路径就能加载，**不需要手动维护映射表**。
+
+#### 第三步：Layout.vue 里调接口 + 注册动态路由
+
+```vue
+<!-- src/layout/Layout.vue -->
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { loadView } from '@/router/dynamicLoad'
+
+const router = useRouter()
+const menuList = ref([])
+
+onMounted(() => {
+  fetchMenus()
+})
+
+async function fetchMenus() {
+  const response = await fetch('http://localhost:18082/system/menu/tree')
+  const result = await response.json()
+
+  if (result.code === 200) {
+    menuList.value = result.data
+    addDynamicRoutes(result.data)
+  }
+}
+
+function addDynamicRoutes(menus) {
+  menus.forEach(menu => {
+    if (menu.component) {
+      // 👇 用 loadView 动态加载组件
+      const componentFn = loadView(menu.component)
+      if (componentFn) {
+        router.addRoute('Layout', {
+          path: menu.path,
+          name: menu.name,
+          component: componentFn
+        })
+      }
+    }
+    if (menu.children && menu.children.length > 0) {
+      addDynamicRoutes(menu.children)
+    }
+  })
+}
+</script>
+```
+
+#### 第四步：后端返回前端文件路径
+
+```json
+[
+  {
+    "id": 1, "name": "首页", "path": "/home",
+    "component": "Home"
+  },
+  {
+    "id": 2, "name": "系统管理", "path": "/system",
+    "children": [
+      {
+        "id": 3, "name": "用户管理", "path": "/system/user",
+        "component": "system/user/index"
+      },
+      {
+        "id": 4, "name": "角色管理", "path": "/system/role",
+        "component": "system/role/index"
+      }
+    ]
+  }
+]
+```
+
+前端对应的目录结构：
+
+```
+src/views/
+├── Home.vue                    ← 对应 component: "Home"
+└── system/
+    ├── user/
+    │   └── index.vue           ← 对应 component: "system/user/index"
+    └── role/
+        └── index.vue           ← 对应 component: "system/role/index"
+```
+
+#### 方案 C 的优缺点
+
+| | 说明 |
+|---|---|
+| ✅ 优点 | 前端完全不用改映射表，只管写 `.vue` 文件 |
+| ✅ 优点 | 后端灵活配置，真正实现"加菜单不改前端代码" |
+| ❌ 缺点 | 后端填错路径前端会白屏，需要做好错误处理 |
+| ❌ 缺点 | 安全性略低，需要后端保证不填恶意路径 |
+
+---
+
+### 12.5 三种方案对比总结
+
+```
+方案 A（静态路由）：
+  router/index.js 里写死所有路由
+  加新页面 → 改 router/index.js → 重新发布前端
+
+方案 B（前端映射表）：
+  router/index.js 只有壳子
+  menuMap.js 维护 组件名 → 加载函数 的映射
+  加新页面 → 改 menuMap.js + 后端加数据 → 重新发布前端
+
+方案 C（后端返回路径）：
+  router/index.js 只有壳子
+  import.meta.glob 自动扫描所有 .vue 文件
+  加新页面 → 只在后端加数据 → 前端不用改（但要重新部署前端让新 .vue 文件生效）
+```
+
+| | 纯静态 (A) | 映射表 (B) | 后端路径 (C) |
+|---|---|---|---|
+| 复杂度 | ⭐ | ⭐⭐ | ⭐⭐⭐ |
+| 灵活性 | 低 | 中 | 高 |
+| 安全性 | 高 | 高 | 中 |
+| 适合场景 | 学习、小型项目 | 中小项目 | 大型管理系统（若依） |
+
+> 💡 **路由守卫 —— 解决刷新丢失问题**
+> 以上方案 B 和 C 都有一个问题：用户刷新页面后，`addRoute()` 注册的动态路由会丢失。
+> 解决方法是在 `router.beforeEach` 路由守卫中判断是否已加载，未加载则重新请求菜单并注册路由。
+> 这是进阶内容，等你把基础流程跑通后再学习。
 
 ---
 
