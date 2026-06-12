@@ -20,6 +20,7 @@
 - [第十一章：常用 Vue 3 知识点速查](#第十一章常用-vue-3-知识点速查)
 - [第十二章：三种路由方案对比](#第十二章三种路由方案对比)
 - [第十三章：Element Plus UI 框架与菜单管理页面](#第十三章element-plus-ui-框架与菜单管理页面)
+- [第十四章：Axios 请求封装](#第十四章axios-请求封装)
 - [附录：常见问题](#附录常见问题)
 
 ---
@@ -1613,6 +1614,300 @@ const tableData = computed(() => {
 > 💡 **知识点：24 栅格系统**
 > Element Plus 的栅格把一行分成 24 份，`:span="8"` 表示占 8 份（1/3），
 > `:span="16"` 表示占 16 份（2/3）。类似 Bootstrap 的 12 栅格，但更灵活。
+
+---
+
+## 第十四章：Axios 请求封装
+
+### 14.1 Axios 是什么？
+
+Axios 是一个基于 Promise 的 HTTP 客户端库，可以理解为**对原生 fetch 的封装**。
+
+本项目之前用的是原生 `fetch`，每次请求都要写很多重复代码：
+
+```js
+// 原生 fetch —— 每个请求都要重复这些
+async function fetchMenus() {
+  try {
+    const response = await fetch('http://localhost:18082/system/menu/tree')
+    const result = await response.json()
+    if (result.code === 200) {
+      menuList.value = result.data
+    } else {
+      ElMessage.error(result.message)
+    }
+  } catch (e) {
+    ElMessage.error('网络异常')
+  }
+}
+```
+
+用 axios 封装后，页面代码变成：
+
+```js
+// axios 封装后 —— 一行搞定
+const result = await getMenuTree()
+menuList.value = result.data
+// 错误已经被拦截器自动处理了，不用写 if 判断和 try/catch
+```
+
+### 14.2 原生 fetch vs Axios 对比
+
+| 对比项 | 原生 fetch | Axios 封装 |
+|--------|-----------|-----------|
+| 每次请求代码量 | 10+ 行 | 3 行 |
+| JSON 解析 | 手动 `response.json()` | 自动解析 |
+| 错误处理 | 每个请求自己写 try/catch | 拦截器统一处理 |
+| Token 传递 | 每次手动加 header | 拦截器自动带上 |
+| 基础 URL | 每次写完整地址 | 配置一次，到处复用 |
+| 超时控制 | 不支持 | 内置 `timeout` |
+| 请求取消 | 手动写 AbortController | 内置取消机制 |
+
+### 14.3 安装
+
+```bash
+cd frontend/fc-frontend
+npm install axios
+```
+
+### 14.4 创建请求封装文件
+
+新建 `src/utils/request.js`：
+
+```js
+// src/utils/request.js
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
+
+// 创建 axios 实例
+const service = axios.create({
+  baseURL: 'http://localhost:18082',   // 所有请求的基础地址
+  timeout: 20000                       // 请求超时 20 秒
+})
+
+// ========== 请求拦截器 ==========
+// 每次发请求之前自动执行
+service.interceptors.request.use(
+  config => {
+    // 这里可以自动带上 token
+    // const token = localStorage.getItem('token')
+    // if (token) {
+    //   config.headers['Authorization'] = 'Bearer ' + token
+    // }
+    return config
+  }
+)
+
+// ========== 响应拦截器 ==========
+// 每次收到响应之后自动执行
+service.interceptors.response.use(
+  response => {
+    const res = response.data
+
+    // 后端返回的 code 不是 200，统一提示错误
+    if (res.code !== 200) {
+      ElMessage.error(res.message || '请求失败')
+      return Promise.reject(new Error(res.message))
+    }
+
+    return res    // 成功时直接返回，不用再 .json()
+  },
+  error => {
+    // 网络错误、超时等
+    ElMessage.error('网络异常，请稍后重试')
+    return Promise.reject(error)
+  }
+)
+
+export default service
+```
+
+> 💡 **知识点：拦截器是什么？**
+> 拦截器就像一个"中间人"，在请求发出前和响应到达后**自动帮你处理公共逻辑**。
+>
+> ```
+> 你调用 getMenuTree()
+>         ↓
+> 请求拦截器（自动执行）
+>   → 自动加上 token
+>   → 自动加上 Content-Type
+>         ↓
+> 发送 GET http://localhost:18082/system/menu/tree
+>         ↓
+> 收到响应 { code: 200, data: [...] }
+>         ↓
+> 响应拦截器（自动执行）
+>   → 判断 code === 200？是 → 直接返回 res
+>   → 判断 code === 200？否 → ElMessage.error() 提示错误
+>   → 网络报错？         → 提示"网络异常"
+>         ↓
+> 你拿到的就是 { code: 200, data: [...] }，直接用就行
+> ```
+
+### 14.5 创建 API 模块文件
+
+新建 `src/api/menu.js`，把菜单相关的接口集中管理：
+
+```js
+// src/api/menu.js
+import request from '@/utils/request'
+
+// 获取菜单树
+export function getMenuTree() {
+  return request.get('/system/menu/tree')
+}
+
+// 新增菜单
+export function addMenu(data) {
+  return request.post('/system/menu', data)
+}
+
+// 编辑菜单
+export function updateMenu(data) {
+  return request.put('/system/menu', data)
+}
+
+// 删除菜单
+export function deleteMenu(id) {
+  return request.delete(`/system/menu/${id}`)
+}
+```
+
+> 💡 **知识点：为什么要按模块分文件？**
+> - `src/api/menu.js` —— 菜单相关接口
+> - `src/api/user.js` —— 用户相关接口
+> - `src/api/role.js` —— 角色相关接口
+>
+> 每个文件只放一类接口，查找和维护都很方便。
+> 页面里调用时直接 `import { getMenuTree } from '@/api/menu'`。
+
+### 14.6 页面中使用
+
+```vue
+<script setup>
+import { getMenuTree, addMenu, deleteMenu } from '@/api/menu'
+
+// 之前（原生 fetch）
+async function fetchMenus() {
+  try {
+    const response = await fetch('http://localhost:18082/system/menu/tree')
+    const result = await response.json()
+    if (result.code === 200) {
+      menuList.value = result.data
+    } else {
+      ElMessage.error(result.message)
+    }
+  } catch (e) {
+    ElMessage.error('网络异常')
+  }
+}
+
+// 之后（axios 封装）
+async function fetchMenus() {
+  const res = await getMenuTree()
+  menuList.value = res.data
+}
+</script>
+```
+
+### 14.7 环境变量管理 baseURL
+
+上一节中 `baseURL` 是写死在代码里的，更好的方式是用环境变量：
+
+**第一步：创建 `.env` 文件**
+
+在 `fc-frontend/` 根目录下创建两个文件：
+
+```
+# .env.development（开发环境）
+VITE_API_URL=http://localhost:18082
+
+# .env.production（生产环境）
+VITE_API_URL=http://your-server.com
+```
+
+**第二步：在 request.js 中使用**
+
+```js
+const service = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,   // 从环境变量读取
+  timeout: 20000
+})
+```
+
+> 💡 **知识点：`import.meta.env`**
+> Vite 提供的读取环境变量的方式。
+> **必须以 `VITE_` 开头**的变量才能在前端代码中访问。
+>
+> | 命令 | 读取的文件 |
+> |------|-----------|
+> | `npm run dev` | `.env.development` |
+> | `npm run build` | `.env.production` |
+>
+> 环境变量在应用启动时读取，运行中途改 `.env` 不会生效，需要重启 `npm run dev`。
+
+### 14.8 `export default` 与命名导出
+
+在 `request.js` 中我们写了 `export default service`，在 `menu.js` 中写了 `import request from '@/utils/request'`。
+
+你可能会问：导出的名字是 `service`，引入时叫 `request`，能对上吗？
+
+```js
+// request.js
+export default service    // 导出的名字叫 service
+
+// menu.js
+import request from '@/utils/request'    // 引入时我叫它 request，完全可以
+```
+
+这是因为 `export default` 是**默认导出**，引入时**随便起名**都行：
+
+```js
+import request from '@/utils/request'   // ✅ 叫 request
+import axios from '@/utils/request'     // ✅ 叫 axios
+import aaa from '@/utils/request'       // ✅ 叫 aaa，都指向同一个 service 对象
+```
+
+与之对应的是**命名导出**，引入时必须用原来的名字：
+
+```js
+// 命名导出
+export function getMenuTree() { ... }
+export function addMenu(data) { ... }
+
+// 引入时必须用原名
+import { getMenuTree, addMenu } from '@/api/menu'
+
+// 或者用 as 改名
+import { getMenuTree as getMenus } from '@/api/menu'
+```
+
+> 💡 **总结：两种导出方式**
+>
+> | 类型 | 语法 | 一个文件能有几个 | 名字能不能改 |
+> |------|------|-----------------|-------------|
+> | 默认导出 | `export default xxx` | 只能 1 个 | 随便改 |
+> | 命名导出 | `export const xxx` | 可以很多个 | 必须用原名（或 `as` 改名） |
+>
+> 简单记：**默认导出像"主菜"，只能点一份；命名导出像"小菜"，可以点很多份，但要点菜名。**
+
+### 14.9 两种方式并存学习
+
+原生 fetch 和 axios 封装可以**同时存在于项目中**，互不影响：
+
+```
+src/
+├── api/
+│   └── menu.js              ← axios 方式（新页面用这个）
+├── utils/
+│   └── request.js           ← axios 封装
+├── views/
+│   ├── Home.vue             ← 保留原生 fetch（对比学习）
+│   └── system/
+│       └── menu/index.vue   ← 可以逐步改成 axios
+```
+
+对比同一个功能的两种写法，更容易理解 axios 到底帮你做了什么。
 
 ---
 
