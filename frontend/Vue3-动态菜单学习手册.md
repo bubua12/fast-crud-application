@@ -19,6 +19,7 @@
 - [第十章：完整布局 —— 侧边栏 + 内容区](#第十章完整布局--侧边栏--内容区)
 - [第十一章：常用 Vue 3 知识点速查](#第十一章常用-vue-3-知识点速查)
 - [第十二章：三种路由方案对比](#第十二章三种路由方案对比)
+- [第十三章：Element Plus UI 框架与菜单管理页面](#第十三章element-plus-ui-框架与菜单管理页面)
 - [附录：常见问题](#附录常见问题)
 
 ---
@@ -1334,6 +1335,284 @@ src/views/
 ```
 
 > 菜单管理不能凭空创建页面，它只能管理**已经存在的前端页面**的展示方式。
+
+---
+
+## 第十三章：Element Plus UI 框架与菜单管理页面
+
+### 13.1 什么是 Element Plus
+
+[Element Plus](https://element-plus.org/) 是饿了么团队开发的 Vue 3 UI 组件库，提供了按钮、表格、表单、菜单、布局等大量现成组件。
+
+管理系统常用的组件：
+
+| 组件 | 用途 |
+|------|------|
+| `el-container` / `el-aside` / `el-main` | 页面布局（侧边栏 + 内容区） |
+| `el-menu` / `el-sub-menu` / `el-menu-item` | 侧边栏菜单 |
+| `el-table` / `el-table-column` | 数据表格 |
+| `el-tree` | 树形控件 |
+| `el-card` | 卡片容器 |
+| `el-button` | 按钮 |
+| `el-form` / `el-input` / `el-select` | 表单 |
+| `el-message` / `el-notification` | 消息提示 |
+
+### 13.2 安装与引入
+
+#### 第一步：安装
+
+```bash
+cd frontend/fc-frontend
+npm install element-plus
+```
+
+#### 第二步：在 main.js 中引入
+
+```js
+// src/main.js
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+import ElementPlus from 'element-plus'          // 👈 引入组件
+import 'element-plus/dist/index.css'            // 👈 引入样式（必须！不引入没有样式）
+
+const app = createApp(App)
+app.use(router)
+app.use(ElementPlus)                            // 👈 注册为全局插件
+app.mount('#app')
+```
+
+> ⚠️ **常见错误：忘记引入 CSS**
+> 如果只写了 `import ElementPlus from 'element-plus'` 但没写 `import 'element-plus/dist/index.css'`，
+> 组件能用但**没有样式**，看起来会很奇怪。
+
+### 13.3 Element Plus 布局组件
+
+Element Plus 提供了专门的布局组件，用来做管理系统页面：
+
+```vue
+<template>
+  <el-container style="height: 100vh">
+    <!-- 左侧菜单栏 -->
+    <el-aside width="200px">
+      菜单内容
+    </el-aside>
+
+    <!-- 右侧区域 -->
+    <el-container>
+      <!-- 顶部 -->
+      <el-header>顶部栏</el-header>
+      <!-- 内容区 -->
+      <el-main>
+        <router-view />
+      </el-main>
+    </el-container>
+  </el-container>
+</template>
+```
+
+> 💡 **知识点：`el-container` 布局原理**
+> `el-container` 自动检测子元素是否包含 `el-aside`，如果有则水平排列（左右），
+> 如果没有则垂直排列（上下）。不需要手写 CSS。
+
+### 13.4 Element Plus 菜单组件
+
+`el-menu` 天然支持多层级菜单，**不需要自己写递归组件**：
+
+```vue
+<template>
+  <el-menu
+    :default-active="$route.path"      <!-- 当前路由高亮 -->
+    router                              <!-- 点击自动跳转 -->
+    background-color="#304156"          <!-- 背景色 -->
+    text-color="#bfcbd9"                <!-- 文字颜色 -->
+    active-text-color="#409eff"         <!-- 选中颜色 -->
+  >
+    <template v-for="menu in menuList" :key="menu.id">
+      <!-- 有子菜单：用 el-sub-menu -->
+      <el-sub-menu v-if="menu.children && menu.children.length" :index="menu.path">
+        <template #title>{{ menu.name }}</template>
+        <el-menu-item v-for="child in menu.children" :key="child.id" :index="child.path">
+          {{ child.name }}
+        </el-menu-item>
+      </el-sub-menu>
+
+      <!-- 没有子菜单：用 el-menu-item -->
+      <el-menu-item v-else :index="menu.path">
+        {{ menu.name }}
+      </el-menu-item>
+    </template>
+  </el-menu>
+</template>
+```
+
+> 💡 **知识点：`el-menu` 的 `router` 属性**
+> 加上 `router` 属性后，点击 `el-menu-item` 会自动把 `index` 的值作为路径跳转。
+> 不需要 `<router-link>`。
+
+### 13.5 实战：菜单管理页面
+
+#### 需求分析
+
+```
+┌─────────────────────────────────────────┐
+│              菜单管理                     │
+├──────────────┬──────────────────────────┤
+│              │                          │
+│   菜单树      │    菜单列表（表格）         │
+│  (el-tree)   │    (el-table)            │
+│              │                          │
+│  系统管理     │  id | 名称 | 路径 | 排序   │
+│   ├ 用户管理  │   3 | 用户管理 | ... | 1  │
+│   ├ 角色管理  │   4 | 角色管理 | ... | 2  │
+│   └ 菜单管理  │   6 | 菜单管理 | ... | 3  │
+│  首页        │                          │
+│  关于        │                          │
+│              │                          │
+└──────────────┴──────────────────────────┘
+
+点击左侧树的某个节点 → 右侧表格显示该节点的子菜单
+```
+
+#### 用到的组件
+
+| 组件 | 作用 |
+|------|------|
+| `el-row` / `el-col` | 左右分栏（栅格布局） |
+| `el-card` | 卡片容器，带标题和边框 |
+| `el-tree` | 树形控件，支持点击选中 |
+| `el-table` / `el-table-column` | 表格展示数据 |
+| `el-tag` | 标签，用于显示"有无子菜单" |
+
+#### 完整代码
+
+```vue
+<!-- src/views/system/menu/index.vue -->
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+
+// 所有菜单的树形数据
+const menuTree = ref([])
+// 当前选中的菜单节点
+const selectedMenu = ref(null)
+
+onMounted(() => {
+  fetchMenus()
+})
+
+async function fetchMenus() {
+  const response = await fetch('http://localhost:18082/system/menu/tree')
+  const result = await response.json()
+  if (result.code === 200) {
+    menuTree.value = result.data
+  }
+}
+
+// 点击树节点时，记录选中的菜单
+function handleNodeClick(data) {
+  selectedMenu.value = data
+}
+
+// 右侧表格展示的数据：选中菜单的 children
+// 如果没选中，展示顶级菜单
+const tableData = computed(() => {
+  if (selectedMenu.value) {
+    return selectedMenu.value.children || []
+  }
+  return menuTree.value
+})
+</script>
+
+<template>
+  <div>
+    <h2>菜单管理</h2>
+
+    <el-row :gutter="20">
+      <!-- 左侧：菜单树 -->
+      <el-col :span="8">
+        <el-card header="菜单结构">
+          <el-tree
+            :data="menuTree"
+            :props="{ label: 'name', children: 'children' }"
+            node-key="id"
+            highlight-current
+            default-expand-all
+            @node-click="handleNodeClick"
+          />
+        </el-card>
+      </el-col>
+
+      <!-- 右侧：菜单列表 -->
+      <el-col :span="16">
+        <el-card :header="selectedMenu ? selectedMenu.name + ' - 子菜单列表' : '顶级菜单列表'">
+          <el-table :data="tableData" border stripe>
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="name" label="菜单名称" />
+            <el-table-column prop="path" label="路由路径" />
+            <el-table-column prop="component" label="组件路径" />
+            <el-table-column prop="sort" label="排序" width="80" />
+            <el-table-column label="有无子菜单" width="120">
+              <template #default="{ row }">
+                <el-tag :type="row.children && row.children.length ? 'success' : 'info'">
+                  {{ row.children && row.children.length ? '有' : '无' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
+  </div>
+</template>
+
+<style scoped>
+</style>
+```
+
+#### 关键知识点
+
+**`el-tree` 配置：**
+
+```js
+:props="{ label: 'name', children: 'children' }"
+//        ↑ 显示哪个字段当文字      ↑ 用哪个字段当子节点
+```
+
+后端返回的数据字段刚好是 `name` 和 `children`，直接对应。
+
+**`@node-click="handleNodeClick"`：**
+
+点击树的某个节点时触发，`data` 参数就是该节点的完整数据（包含 `children`），所以右侧直接用 `data.children` 就是它的子菜单。
+
+**`computed` 计算属性：**
+
+```js
+const tableData = computed(() => {
+  if (selectedMenu.value) {
+    return selectedMenu.value.children || []    // 选中了，显示子菜单
+  }
+  return menuTree.value                          // 没选中，显示顶级菜单
+})
+```
+
+`computed` 会自动响应 `selectedMenu` 的变化，选中不同节点时表格自动更新。
+
+### 13.6 栅格布局 `el-row` / `el-col`
+
+```vue
+<el-row :gutter="20">        <!-- gutter 是列之间的间距 -->
+  <el-col :span="8">         <!-- 占 8/24 = 1/3 宽度 -->
+    左侧
+  </el-col>
+  <el-col :span="16">        <!-- 占 16/24 = 2/3 宽度 -->
+    右侧
+  </el-col>
+</el-row>
+```
+
+> 💡 **知识点：24 栅格系统**
+> Element Plus 的栅格把一行分成 24 份，`:span="8"` 表示占 8 份（1/3），
+> `:span="16"` 表示占 16 份（2/3）。类似 Bootstrap 的 12 栅格，但更灵活。
 
 ---
 
