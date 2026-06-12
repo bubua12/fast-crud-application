@@ -22,6 +22,16 @@ public class SystemController {
     private final MenuService menuService;
 
     /**
+     * 编辑菜单
+     * PUT /system/menu
+     */
+    @PutMapping("/menu")
+    public CommonResult<String> updateMenu(@RequestBody Menu menu) {
+        menuService.updateMenu(menu);
+        return CommonResult.success("编辑成功");
+    }
+
+    /**
      * 获取菜单树
      * GET /system/menu/tree
      */

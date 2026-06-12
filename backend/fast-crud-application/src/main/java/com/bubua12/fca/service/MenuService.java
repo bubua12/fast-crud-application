@@ -20,6 +20,10 @@ public class MenuService {
 
     private final MenuMapper menuMapper;
 
+    public void updateMenu(Menu menu) {
+        menuMapper.updateById(menu);
+    }
+
     /**
      * 获取菜单树
      * 1. 从数据库查询所有菜单（扁平列表）
